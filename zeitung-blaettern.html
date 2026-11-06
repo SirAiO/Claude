@@ -89,11 +89,11 @@
   .cf.blank { background: none; }
   .cf::after { content: ""; position: absolute; inset: 0; }
   .cf.front::after { background: linear-gradient(to right, rgba(0,0,0,.30), rgba(0,0,0,.08) 3%, rgba(0,0,0,0) 10%); }
-  .cf.b::after { background: linear-gradient(to left, rgba(0,0,0,.30), rgba(0,0,0,.08) 3%, rgba(0,0,0,0) 10%); }
+  .cf.b::after { background: linear-gradient(to left, rgba(0,0,0,.30), rgba(0,0,0,.08) 3%, rgba(0,0,0,0) 10%); opacity: var(--lan, 0); }
   .cf.blank::after { display: none; }
   .cf .sh { position: absolute; inset: 0; z-index: 1; }
   .crv { position: absolute; left: 0; top: 0; width: var(--W); height: var(--H); }
-  .cshadow { position: absolute; left: 0; top: 0; width: 0; height: 0; filter: drop-shadow(-3px 3px 7px rgba(0,0,0,.4)); }
+  .cshadow { position: absolute; left: 0; top: 0; width: 0; height: 0; filter: drop-shadow(calc(-3px * (1 - var(--lan, 0))) calc(3px + 5px * var(--lan, 0)) 9px rgba(0,0,0,.34)); }
 
   /* Leiste */
   #bar { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding-bottom: 2px; }
@@ -328,9 +328,14 @@
     sc.b.style.clipPath = polyCss(foldP.map(function (p) { return [W - p[0], p[1]]; }));
     var d = [L00 * nx + L10 * ny, L01 * nx + L11 * ny];
     var q0 = [L00 * (mx - ex) + L10 * (my - ey), L01 * (mx - ex) + L11 * (my - ey)];
-    sc.sh.style.background = grad(W, H, q0, d, [[0, 'rgba(0,0,0,.2)'], [W * .35, 'rgba(0,0,0,0)']]);
+    /* Kurz vor dem Ablegen löst sich der Falzschatten auf und der feste Schatten am Rücken übernimmt,
+       damit beim Wechsel zur fertigen Seite nichts springt. */
+    var lan = Math.max(0, Math.min(1, 1 - (P[0] + W) / (2 * W) * 3 * 1)), fade = 1 - lan;
+    sc.b.style.setProperty('--lan', lan.toFixed(3));
+    sc.bw.style.setProperty('--lan', lan.toFixed(3));
+    sc.sh.style.background = grad(W, H, q0, d, [[0, 'rgba(0,0,0,' + (.2 * fade).toFixed(3) + ')'], [W * .35, 'rgba(0,0,0,0)']]);
     sc.rv.style.clipPath = polyCss(foldP);
-    sc.rv.style.background = grad(W, H, [mx, my], [nx, ny], [[-W * .3, 'rgba(0,0,0,0)'], [0, 'rgba(0,0,0,.3)']]);
+    sc.rv.style.background = grad(W, H, [mx, my], [nx, ny], [[-W * .3, 'rgba(0,0,0,0)'], [0, 'rgba(0,0,0,' + (.3 * fade).toFixed(3) + ')']]);
   }
   function animP(sc, from, to, dur, arc) {
     return new Promise(function (res) {
