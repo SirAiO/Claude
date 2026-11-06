@@ -225,13 +225,13 @@
     var x = kk === 0 && leaves.length > 1 ? -W / 2 : singleLeftAt(kk) ? W / 2 : 0;
     book.style.transform = 'translateX(' + x + 'px)';
   }
-  function setLeaf(i, a) {
-    leaves[i].style.transform = 'rotateY(' + (-a) + 'deg)';
+  function setLeaf(i, a, dx) {
+    leaves[i].style.transform = (dx ? 'translateX(' + dx + 'px) ' : '') + 'rotateY(' + (-a) + 'deg)';
     leaves[i].style.setProperty('--s', Math.sin(a * Math.PI / 180).toFixed(3));
   }
   function settle() {
     leaves.forEach(function (l, i) {
-      var a = i < k ? 180 : 0; angle[i] = a; setLeaf(i, a);
+      l.style.visibility = ''; var a = i < k ? 180 : 0; angle[i] = a; setLeaf(i, a);
       l.style.zIndex = i < k ? i + 1 : leaves.length - i;
     });
     updateOffset(k); updateUI();
@@ -260,8 +260,30 @@
     await anim(i, from, to);
     k = newK; settle(); busy = false;
   }
+  /* Letzte Seite: kein Umblättern, die Ansicht schiebt sich seitlich weiter */
+  function isSlide(dir) {
+    if (dir > 0) return k === leaves.length - 1 && !sheets[k][0];
+    return k === leaves.length && k > 0 && !sheets[k - 1][0];
+  }
+  function slide(dir) {
+    busy = true;
+    var a = leaves.length - 2, b = leaves.length - 1, dist = stage.clientWidth / 2 + W;
+    var dur = 750, t0 = performance.now();
+    leaves[b].style.zIndex = 1000; leaves[a].style.zIndex = 999;
+    leaves.forEach(function (l, i) { if (i < a) l.style.visibility = 'hidden'; });
+    var from = dir > 0 ? 0 : 1, to = dir > 0 ? 1 : 0;
+    (function step(t) {
+      var p = Math.min(1, (t - t0) / dur), e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      var q = from + (to - from) * e;
+      setLeaf(a, 180, -dist * q);
+      setLeaf(b, 180, dist * (1 - q));
+      if (p < 1) requestAnimationFrame(step);
+      else { k += dir; settle(); busy = false; }
+    })(t0);
+  }
   function turn(dir) {
     if (busy || !leaves.length) return;
+    if ((dir > 0 && k < leaves.length || dir < 0 && k > 0) && isSlide(dir)) { slide(dir); return; }
     if (dir > 0 && k < leaves.length) flipTo(k, 0, 180, k + 1);
     else if (dir < 0 && k > 0) flipTo(k - 1, 180, 0, k - 1);
   }
@@ -275,13 +297,14 @@
     var dir = e.clientX >= mid ? 1 : -1;
     if (dir > 0 && k >= leaves.length) dir = -1;
     if (dir < 0 && k <= 0) dir = 1;
-    drag = { dir: dir, i: dir > 0 ? k : k - 1, x0: e.clientX, x: e.clientX, v: 0, moved: false, id: e.pointerId };
+    drag = { slide: isSlide(dir), dir: dir, i: dir > 0 ? k : k - 1, x0: e.clientX, x: e.clientX, v: 0, moved: false, id: e.pointerId };
     stage.setPointerCapture(e.pointerId);
   });
   stage.addEventListener('pointermove', function (e) {
     if (!drag) return;
     var dx = e.clientX - drag.x0;
     drag.v = e.clientX - drag.x; drag.x = e.clientX;
+    if (drag.slide) return;
     if (!drag.moved && Math.abs(dx) > 6) {
       drag.moved = true; stage.classList.add('grabbing');
       leaves[drag.i].style.zIndex = 1000; updateOffset(k + drag.dir);
@@ -294,6 +317,7 @@
   function endDrag(e) {
     if (!drag) return;
     var d = drag; drag = null; stage.classList.remove('grabbing');
+    if (d.slide) { if (Math.abs(e.clientX - d.x0) < 6 || (e.clientX - d.x0) * d.dir < 0) turn(d.dir); return; }
     if (!d.moved) { turn(d.dir); return; }
     var a = angle[d.i], p = d.dir > 0 ? a / 180 : 1 - a / 180;
     var fling = (d.dir > 0 ? -d.v : d.v) > 6;
