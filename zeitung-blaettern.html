@@ -71,14 +71,16 @@
   #stage.grabbing { cursor: grabbing; }
   #book { position: relative; width: calc(var(--W) * 2); height: var(--H); perspective: calc(var(--W) * 4); transition: transform .85s cubic-bezier(.45, 0, .2, 1); }
   .leaf { position: absolute; left: 50%; top: 0; width: var(--W); height: var(--H); transform-origin: 0 50%; transform-style: preserve-3d; }
-  .face { position: absolute; inset: 0; background: var(--paper); overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: 0 8px 28px rgba(0,0,0,.28), 0 1px 3px rgba(0,0,0,.3); }
+  .face { position: absolute; inset: 0; background: var(--paper); overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  /* Ein gemeinsamer Schatten hinter allen sichtbaren Seiten, damit am Falz nichts doppelt oder hart abgeschnitten wird */
+  .bshadow { position: absolute; top: 0; height: var(--H); left: 50%; width: 0; z-index: 0; background: var(--paper); box-shadow: 0 8px 28px rgba(0,0,0,.28), 0 1px 3px rgba(0,0,0,.3); transition: left .85s cubic-bezier(.45, 0, .2, 1), width .85s cubic-bezier(.45, 0, .2, 1); }
   .face.back { transform: rotateY(180deg); }
   .face.blank { visibility: hidden; }
   .face img { display: block; width: 100%; height: 100%; pointer-events: none; -webkit-user-drag: none; }
   .face::before { content: ""; position: absolute; inset: 0; background: #000; opacity: calc(var(--s, 0) * .3); pointer-events: none; z-index: 2; }
   .face::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1; }
-  .face.front::after { background: linear-gradient(to right, rgba(0,0,0,.30), rgba(0,0,0,.08) 3%, rgba(0,0,0,0) 10%); }
-  .face.back::after { background: linear-gradient(to left, rgba(0,0,0,.30), rgba(0,0,0,.08) 3%, rgba(0,0,0,0) 10%); }
+  .face.front::after { background: linear-gradient(to right, rgba(0,0,0,.26), rgba(0,0,0,.13) 2.5%, rgba(0,0,0,.05) 6%, rgba(0,0,0,.015) 9%, rgba(0,0,0,0) 12%); }
+  .face.back::after { background: linear-gradient(to left, rgba(0,0,0,.26), rgba(0,0,0,.13) 2.5%, rgba(0,0,0,.05) 6%, rgba(0,0,0,.015) 9%, rgba(0,0,0,0) 12%); }
 
 
   /* Ecke ziehen */
@@ -88,8 +90,8 @@
   .cf.mir img { transform: scaleX(-1); }
   .cf.blank { background: none; }
   .cf::after { content: ""; position: absolute; inset: 0; }
-  .cf.front::after { background: linear-gradient(to right, rgba(0,0,0,.30), rgba(0,0,0,.08) 3%, rgba(0,0,0,0) 10%); }
-  .cf.b::after { background: linear-gradient(to left, rgba(0,0,0,.30), rgba(0,0,0,.08) 3%, rgba(0,0,0,0) 10%); opacity: var(--lan, 0); }
+  .cf.front::after { background: linear-gradient(to right, rgba(0,0,0,.26), rgba(0,0,0,.13) 2.5%, rgba(0,0,0,.05) 6%, rgba(0,0,0,.015) 9%, rgba(0,0,0,0) 12%); }
+  .cf.b::after { background: linear-gradient(to left, rgba(0,0,0,.26), rgba(0,0,0,.13) 2.5%, rgba(0,0,0,.05) 6%, rgba(0,0,0,.015) 9%, rgba(0,0,0,0) 12%); opacity: var(--lan, 0); }
   .cf.blank::after { display: none; }
   .cf .sh { position: absolute; inset: 0; z-index: 1; }
   .crv { position: absolute; left: 0; top: 0; width: var(--W); height: var(--H); }
@@ -140,7 +142,7 @@
   var stage = $('#stage'), book = $('#book'), landing = $('#landing'), bar = $('#bar'),
       drop = $('#drop'), fileIn = $('#file'), prog = $('#progress'), fill = $('#fill'), ptext = $('#ptext'),
       err = $('#err'), prevB = $('#prev'), nextB = $('#next'), label = $('#label');
-  var sheets = [], leaves = [], angle = [], urls = [], k = 0, n = 0, W = 0, H = 0, ratio = 0.7, busy = false;
+  var shadowEl, sheets = [], leaves = [], angle = [], urls = [], k = 0, n = 0, W = 0, H = 0, ratio = 0.7, busy = false;
 
   /* Blätter: jedes Blatt hat Vorder- und Rückseite. 13 Seiten ergeben 7 Blätter:
      (1|2) (3|4) (5|6) (7|8) (9|10) (11|12) (-|13) */
@@ -218,7 +220,7 @@
     return d;
   }
   function build() {
-    book.innerHTML = ''; leaves = []; angle = []; k = 0; busy = false;
+    book.innerHTML = ''; shadowEl = el('bshadow', book); leaves = []; angle = []; k = 0; busy = false;
     sheets = buildSheets(n);
     sheets.forEach(function (s) {
       var leaf = document.createElement('div'); leaf.className = 'leaf';
@@ -239,6 +241,9 @@
   function updateOffset(kk) {
     var x = kk === 0 && leaves.length > 1 ? -W / 2 : singleLeftAt(kk) ? W / 2 : 0;
     book.style.transform = 'translateX(' + x + 'px)';
+    var hasL = kk > 0, hasR = kk < leaves.length && !!sheets[kk][0];
+    shadowEl.style.left = 'calc(50% - ' + (hasL ? W : 0) + 'px)';
+    shadowEl.style.width = ((hasL ? W : 0) + (hasR ? W : 0)) + 'px';
   }
   function setLeaf(i, a, dx) {
     leaves[i].style.transform = (dx ? 'translateX(' + dx + 'px) ' : '') + 'rotateY(' + (-a) + 'deg)';
