@@ -1,0 +1,336 @@
+<title>Zeitung blättern</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,700&family=Barlow+Condensed:wght@500;600&display=swap">
+<style>
+  /* Layout: Lesetisch. Eine Bühne füllt den Bildschirm, das Heft liegt mittig, unten eine schmale Leiste. */
+  :root {
+    --bg: #cdd2d8;
+    --fg: #1c2127;
+    --muted: #5b6672;
+    --accent: #c8321a;
+    --accent-fg: #ffffff;
+    --paper: #f3f1ec;
+    --panel: #e6e9ed;
+    --line: #aab2bb;
+    --font-display: "Newsreader", Georgia, "Times New Roman", serif;
+    --font-label: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181c; --fg: #e8ebee; --muted: #94a0ac; --accent: #ff6a4d; --accent-fg: #1a0d09;
+      --paper: #2a2d31; --panel: #1f2429; --line: #36404a; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181c; --fg: #e8ebee; --muted: #94a0ac; --accent: #ff6a4d; --accent-fg: #1a0d09;
+    --paper: #2a2d31; --panel: #1f2429; --line: #36404a; color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body {
+    box-sizing: border-box;
+    background: var(--bg); color: var(--fg); font-family: var(--font-body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 12px;
+    display: flex; flex-direction: column; gap: 10px; overflow: hidden;
+  }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Startansicht */
+  #landing { flex: 1; min-height: 0; display: grid; place-items: center; overflow-y: auto; }
+  .drop {
+    width: min(640px, 100%); display: flex; flex-direction: column; align-items: center; gap: 18px;
+    padding: 36px 24px; border: 2px dashed var(--line); border-radius: 6px; text-align: center;
+    transition: border-color .2s, background .2s;
+  }
+  .drop.over { border-color: var(--accent); background: var(--panel); }
+  .drop h1 { margin: 0; font: 700 clamp(28px, 6vw, 44px)/1.05 var(--font-display); text-wrap: balance; }
+  .drop p { margin: 0; max-width: 46ch; color: var(--muted); line-height: 1.5; text-wrap: balance; }
+  .pick {
+    background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 4px; cursor: pointer;
+    padding: 12px 22px; font: 600 18px/1 var(--font-label); letter-spacing: .06em; text-transform: uppercase;
+  }
+  .pick:hover { filter: brightness(1.08); }
+  .seq { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; margin-top: 4px; }
+  .seq figure { margin: 0; display: grid; gap: 4px; justify-items: center; }
+  .seq .v { display: flex; gap: 1px; height: 34px; }
+  .seq .p { width: 18px; background: var(--paper); border: 1px solid var(--line); display: grid; place-items: center; font: 600 10px var(--font-label); color: var(--muted); }
+  .seq .empty { width: 18px; }
+  .seq figcaption { font: 500 12px var(--font-label); letter-spacing: .05em; color: var(--muted); }
+  #progress { width: min(320px, 100%); display: grid; gap: 8px; }
+  #progress .bar { height: 4px; background: var(--line); }
+  #progress .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+  #progress span { font: 500 15px var(--font-label); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  #err { color: var(--accent); min-height: 1.2em; }
+
+  /* Heft */
+  #stage { flex: 1; min-height: 0; position: relative; display: grid; place-items: center; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+  #stage.grabbing { cursor: grabbing; }
+  #book { position: relative; width: calc(var(--W) * 2); height: var(--H); perspective: calc(var(--W) * 4); transition: transform .85s cubic-bezier(.45, 0, .2, 1); }
+  .leaf { position: absolute; left: 50%; top: 0; width: var(--W); height: var(--H); transform-origin: 0 50%; transform-style: preserve-3d; }
+  .face { position: absolute; inset: 0; background: var(--paper); overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: 0 8px 28px rgba(0,0,0,.28), 0 1px 3px rgba(0,0,0,.3); }
+  .face.back { transform: rotateY(180deg); }
+  .face.blank { visibility: hidden; }
+  .face img { display: block; width: 100%; height: 100%; pointer-events: none; -webkit-user-drag: none; }
+  .face::before { content: ""; position: absolute; inset: 0; background: #000; opacity: calc(var(--s, 0) * .3); pointer-events: none; z-index: 2; }
+  .face::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+  .face.front::after { background: linear-gradient(to right, rgba(0,0,0,.30), rgba(0,0,0,.08) 3%, rgba(0,0,0,0) 10%); }
+  .face.back::after { background: linear-gradient(to left, rgba(0,0,0,.30), rgba(0,0,0,.08) 3%, rgba(0,0,0,0) 10%); }
+
+  /* Leiste */
+  #bar { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding-bottom: 2px; }
+  #bar[hidden], #stage[hidden], #landing[hidden] { display: none !important; }
+  .nav {
+    width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--line);
+    background: var(--panel); border-radius: 4px; cursor: pointer; font-size: 20px; line-height: 1;
+  }
+  .nav:hover:not(:disabled) { border-color: var(--accent); }
+  .nav:disabled { opacity: .35; cursor: default; }
+  #label { min-width: 11ch; text-align: center; font: 600 20px var(--font-label); letter-spacing: .06em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+  .ghost { background: none; border: 0; cursor: pointer; color: var(--muted); font: 500 15px var(--font-label); letter-spacing: .06em; text-transform: uppercase; padding: 10px 6px; text-decoration: underline; text-underline-offset: 3px; }
+  .ghost:hover { color: var(--accent); }
+
+  @media (prefers-reduced-motion: reduce) { #book { transition-duration: .01s; } }
+</style>
+
+<section id="landing">
+  <div class="drop" id="drop">
+    <h1>Zeitung blättern</h1>
+    <p>PDF hierher ziehen oder auswählen. Seite 1 steht allein, dann folgen die Doppelseiten, die letzten beiden Seiten stehen wieder einzeln.</p>
+    <button class="pick" id="pick" type="button">PDF auswählen</button>
+    <input type="file" id="file" accept="application/pdf,.pdf" hidden>
+    <div class="seq" id="seq" aria-label="Reihenfolge der Ansichten bei 13 Seiten"></div>
+    <div id="progress" hidden><div class="bar"><i id="fill"></i></div><span id="ptext"></span></div>
+    <div id="err" role="alert"></div>
+  </div>
+</section>
+
+<main id="stage" hidden><div id="book"></div></main>
+
+<nav id="bar" hidden aria-label="Blättern">
+  <button class="nav" id="prev" type="button" aria-label="Zurückblättern">&#8592;</button>
+  <div id="label" aria-live="polite"></div>
+  <button class="nav" id="next" type="button" aria-label="Weiterblättern">&#8594;</button>
+  <button class="ghost" id="other" type="button">Andere PDF</button>
+</nav>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var stage = $('#stage'), book = $('#book'), landing = $('#landing'), bar = $('#bar'),
+      drop = $('#drop'), fileIn = $('#file'), prog = $('#progress'), fill = $('#fill'), ptext = $('#ptext'),
+      err = $('#err'), prevB = $('#prev'), nextB = $('#next'), label = $('#label');
+  var sheets = [], leaves = [], angle = [], urls = [], k = 0, n = 0, W = 0, H = 0, ratio = 0.7, busy = false;
+
+  /* Blätter: jedes Blatt hat Vorder- und Rückseite. 13 Seiten ergeben 7 Blätter:
+     (1|2) (3|4) (5|6) (7|8) (9|10) (11|12) (-|13) */
+  function buildSheets(count) {
+    var s = [], p;
+    if (count === 1) return [[1, null]];
+    if (count % 2 === 1) {
+      for (p = 1; p <= count - 2; p += 2) s.push([p, p + 1]);
+      s.push([null, count]);
+    } else {
+      for (p = 1; p <= count - 1; p += 2) s.push([p, p + 1]);
+    }
+    return s;
+  }
+
+  /* Übersicht der Ansichten auf der Startseite */
+  (function () {
+    var s = buildSheets(13), views = [], i, box = $('#seq');
+    for (i = 0; i <= s.length; i++) {
+      views.push([i > 0 ? s[i - 1][1] : null, i < s.length ? s[i][0] : null]);
+    }
+    views.forEach(function (v) {
+      var f = document.createElement('figure'), d = document.createElement('div'), c = document.createElement('figcaption');
+      d.className = 'v';
+      var single = !v[0] || !v[1];
+      v.forEach(function (pg) {
+        if (pg) { var e = document.createElement('div'); e.className = 'p'; e.textContent = pg; d.append(e); }
+        else if (!single) { var x = document.createElement('div'); x.className = 'empty'; d.append(x); }
+      });
+      c.textContent = v.filter(Boolean).join('–');
+      f.append(d, c); box.append(f);
+    });
+  })();
+
+  /* PDF laden */
+  async function loadPdf(file) {
+    err.textContent = '';
+    if (!window.pdfjsLib) { err.textContent = 'Die PDF-Bibliothek konnte nicht geladen werden. Bitte Seite neu laden.'; return; }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    prog.hidden = false; fill.style.width = '0'; ptext.textContent = 'PDF wird gelesen';
+    try {
+      var buf = await file.arrayBuffer();
+      var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      var out = [], i;
+      for (i = 1; i <= pdf.numPages; i++) {
+        ptext.textContent = 'Seite ' + i + ' von ' + pdf.numPages;
+        var page = await pdf.getPage(i);
+        var vp1 = page.getViewport({ scale: 1 });
+        if (i === 1) ratio = vp1.width / vp1.height;
+        var scale = Math.min(2000 / vp1.height, 3);
+        var vp = page.getViewport({ scale: scale });
+        var cv = document.createElement('canvas');
+        cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+        await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+        var blob = await new Promise(function (r) { cv.toBlob(r, 'image/jpeg', 0.92); });
+        out.push(URL.createObjectURL(blob));
+        fill.style.width = (i / pdf.numPages * 100) + '%';
+        cv.width = cv.height = 0;
+      }
+      urls.forEach(URL.revokeObjectURL); urls = out; n = out.length;
+      landing.hidden = true; stage.hidden = false; bar.hidden = false; prog.hidden = true;
+      build();
+    } catch (e) {
+      prog.hidden = true;
+      err.textContent = 'Die Datei konnte nicht gelesen werden. Ist es eine gültige PDF?';
+      console.error(e);
+    }
+  }
+
+  /* Heft aufbauen */
+  function face(cls, p) {
+    var d = document.createElement('div'); d.className = 'face ' + cls;
+    if (p) { var im = new Image(); im.src = urls[p - 1]; im.alt = 'Seite ' + p; im.draggable = false; d.append(im); }
+    else d.classList.add('blank');
+    return d;
+  }
+  function build() {
+    book.innerHTML = ''; leaves = []; angle = []; k = 0; busy = false;
+    sheets = buildSheets(n);
+    sheets.forEach(function (s) {
+      var leaf = document.createElement('div'); leaf.className = 'leaf';
+      leaf.append(face('front', s[0]), face('back', s[1]));
+      book.append(leaf); leaves.push(leaf); angle.push(0);
+    });
+    layout(true); settle();
+  }
+  function layout(instant) {
+    var aw = stage.clientWidth - 8, ah = stage.clientHeight - 8;
+    W = Math.max(40, Math.floor(Math.min(ah * ratio, aw / 2)));
+    H = Math.floor(W / ratio);
+    book.style.setProperty('--W', W + 'px'); book.style.setProperty('--H', H + 'px');
+    if (instant) { book.style.transition = 'none'; updateOffset(k); void book.offsetWidth; book.style.transition = ''; }
+    else updateOffset(k);
+  }
+  function singleLeftAt(kk) { return kk > 0 && (kk >= leaves.length || !sheets[kk][0]); }
+  function updateOffset(kk) {
+    var x = kk === 0 && leaves.length > 1 ? -W / 2 : singleLeftAt(kk) ? W / 2 : 0;
+    book.style.transform = 'translateX(' + x + 'px)';
+  }
+  function setLeaf(i, a) {
+    leaves[i].style.transform = 'rotateY(' + (-a) + 'deg)';
+    leaves[i].style.setProperty('--s', Math.sin(a * Math.PI / 180).toFixed(3));
+  }
+  function settle() {
+    leaves.forEach(function (l, i) {
+      var a = i < k ? 180 : 0; angle[i] = a; setLeaf(i, a);
+      l.style.zIndex = i < k ? i + 1 : leaves.length - i;
+    });
+    updateOffset(k); updateUI();
+  }
+  function updateUI() {
+    var l = k > 0 ? sheets[k - 1][1] : null, r = k < leaves.length ? sheets[k][0] : null;
+    var pages = [l, r].filter(Boolean);
+    label.textContent = (pages.length > 1 ? 'Seiten ' + pages.join('–') : 'Seite ' + pages[0]) + ' / ' + n;
+    prevB.disabled = k <= 0; nextB.disabled = k >= leaves.length;
+  }
+
+  /* Animation eines Blatts von Winkel a bis b (0 = rechts, 180 = links) */
+  function anim(i, from, to) {
+    return new Promise(function (res) {
+      var dur = Math.max(260, 950 * Math.abs(to - from) / 180), t0 = performance.now();
+      leaves[i].style.zIndex = 1000;
+      (function step(t) {
+        var p = Math.min(1, (t - t0) / dur), e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+        var a = from + (to - from) * e; angle[i] = a; setLeaf(i, a);
+        if (p < 1) requestAnimationFrame(step); else res();
+      })(t0);
+    });
+  }
+  async function flipTo(i, from, to, newK) {
+    busy = true; updateOffset(newK);
+    await anim(i, from, to);
+    k = newK; settle(); busy = false;
+  }
+  function turn(dir) {
+    if (busy || !leaves.length) return;
+    if (dir > 0 && k < leaves.length) flipTo(k, 0, 180, k + 1);
+    else if (dir < 0 && k > 0) flipTo(k - 1, 180, 0, k - 1);
+  }
+
+  /* Ziehen mit der Maus oder dem Finger */
+  var drag = null;
+  stage.addEventListener('pointerdown', function (e) {
+    if (busy || !leaves.length || e.button > 0) return;
+    var r = book.getBoundingClientRect(), spine = r.left + r.width / 2;
+    var mid = singleLeftAt(k) ? spine - W / 2 : spine;
+    var dir = e.clientX >= mid ? 1 : -1;
+    if (dir > 0 && k >= leaves.length) dir = -1;
+    if (dir < 0 && k <= 0) dir = 1;
+    drag = { dir: dir, i: dir > 0 ? k : k - 1, x0: e.clientX, x: e.clientX, v: 0, moved: false, id: e.pointerId };
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.x0;
+    drag.v = e.clientX - drag.x; drag.x = e.clientX;
+    if (!drag.moved && Math.abs(dx) > 6) {
+      drag.moved = true; stage.classList.add('grabbing');
+      leaves[drag.i].style.zIndex = 1000; updateOffset(k + drag.dir);
+    }
+    if (!drag.moved) return;
+    var p = Math.max(0, Math.min(1, (drag.dir > 0 ? -dx : dx) / (W * 1.1)));
+    var a = drag.dir > 0 ? 180 * p : 180 * (1 - p);
+    angle[drag.i] = a; setLeaf(drag.i, a);
+  });
+  function endDrag(e) {
+    if (!drag) return;
+    var d = drag; drag = null; stage.classList.remove('grabbing');
+    if (!d.moved) { turn(d.dir); return; }
+    var a = angle[d.i], p = d.dir > 0 ? a / 180 : 1 - a / 180;
+    var fling = (d.dir > 0 ? -d.v : d.v) > 6;
+    if (p > 0.3 || fling) {
+      if (d.dir > 0) flipTo(d.i, a, 180, k + 1); else flipTo(d.i, a, 0, k - 1);
+    } else {
+      if (d.dir > 0) flipTo(d.i, a, 0, k); else flipTo(d.i, a, 180, k);
+    }
+  }
+  stage.addEventListener('pointerup', endDrag);
+  stage.addEventListener('pointercancel', endDrag);
+
+  prevB.addEventListener('click', function () { turn(-1); });
+  nextB.addEventListener('click', function () { turn(1); });
+  document.addEventListener('keydown', function (e) {
+    if (stage.hidden) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); turn(1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); turn(-1); }
+  });
+  window.addEventListener('resize', function () { if (leaves.length) layout(false); });
+
+  /* Datei wählen / ablegen */
+  $('#pick').addEventListener('click', function () { fileIn.click(); });
+  $('#other').addEventListener('click', function () {
+    stage.hidden = true; bar.hidden = true; landing.hidden = false; fileIn.value = '';
+  });
+  fileIn.addEventListener('change', function () { if (fileIn.files[0]) loadPdf(fileIn.files[0]); });
+  ['dragenter', 'dragover'].forEach(function (t) {
+    document.addEventListener(t, function (e) { e.preventDefault(); if (!landing.hidden) drop.classList.add('over'); });
+  });
+  ['dragleave', 'drop'].forEach(function (t) {
+    document.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove('over'); });
+  });
+  document.addEventListener('drop', function (e) {
+    var f = e.dataTransfer && e.dataTransfer.files[0];
+    if (f && /pdf$/i.test(f.type || f.name)) loadPdf(f);
+    else if (f) err.textContent = 'Das ist keine PDF-Datei.';
+  });
+})();
+</script>
