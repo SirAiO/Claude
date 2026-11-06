@@ -1,5 +1,6 @@
 <title>Zeitung blättern</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,700&family=Barlow+Condensed:wght@500;600&display=swap">
 <style>
   /* Layout: Lesetisch. Eine Bühne füllt den Bildschirm, das Heft liegt mittig, unten eine schmale Leiste. */
@@ -27,7 +28,7 @@
     --paper: #2a2d31; --panel: #1f2429; --line: #36404a; color-scheme: dark;
   }
 
-  html, body { height: 100%; }
+  html, body { height: 100%; margin: 0; }
   body {
     box-sizing: border-box;
     background: var(--bg); color: var(--fg); font-family: var(--font-body);
@@ -112,6 +113,33 @@
   .ghost { background: none; border: 0; cursor: pointer; color: var(--muted); font: 500 15px var(--font-label); letter-spacing: .06em; text-transform: uppercase; padding: 10px 6px; text-decoration: underline; text-underline-offset: 3px; }
   .ghost:hover { color: var(--accent); }
 
+  .hint { display: none; width: 100%; text-align: center; font: 500 14px var(--font-label); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  #stage { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+
+  /* Hochformat am Handy: Doppelseiten sind klein, daher ein Hinweis */
+  @media (orientation: portrait) and (max-width: 700px) {
+    .hint { display: block; order: 5; }
+  }
+
+  /* Handy im Querformat: das Heft bekommt fast die ganze Höhe, die Pfeile sitzen links und rechts daneben */
+  @media (max-height: 520px) and (orientation: landscape) {
+    body { padding-block: 4px 2px; gap: 2px; }
+    #bar { position: static; height: 22px; gap: 14px; padding: 0; flex-wrap: nowrap; }
+    #label { min-width: 0; font-size: 15px; }
+    .ghost { font-size: 13px; padding: 2px 4px; }
+    .nav {
+      position: fixed; top: 50%; margin-top: -32px; width: 52px; height: 64px; z-index: 5;
+      background: color-mix(in srgb, var(--panel) 82%, transparent);
+    }
+    #prev { left: max(10px, env(safe-area-inset-left, 0px)); }
+    #next { right: max(10px, env(safe-area-inset-right, 0px)); }
+    .drop { padding: 16px; gap: 10px; }
+    .drop h1 { font-size: 26px; }
+    .drop p { font-size: 14px; line-height: 1.35; }
+    .seq { display: none; }
+    .pick { padding: 10px 18px; font-size: 16px; }
+  }
+
   @media (prefers-reduced-motion: reduce) { #book { transition-duration: .01s; } }
 </style>
 
@@ -134,6 +162,7 @@
   <div id="label" aria-live="polite"></div>
   <button class="nav" id="next" type="button" aria-label="Weiterblättern">&#8594;</button>
   <button class="ghost" id="other" type="button">Andere PDF</button>
+  <div class="hint">Handy quer halten für größere Seiten</div>
 </nav>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -194,7 +223,8 @@
         var page = await pdf.getPage(i);
         var vp1 = page.getViewport({ scale: 1 });
         if (i === 1) ratio = vp1.width / vp1.height;
-        var scale = Math.min(2000 / vp1.height, 3);
+        var target = Math.min(window.innerWidth, window.innerHeight) < 600 ? 1600 : 2000;
+        var scale = Math.min(target / vp1.height, 3);
         var vp = page.getViewport({ scale: scale });
         var cv = document.createElement('canvas');
         cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
@@ -444,6 +474,7 @@
     else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); turn(-1); }
   });
   window.addEventListener('resize', function () { if (leaves.length) layout(false); });
+  if (window.ResizeObserver) new ResizeObserver(function () { if (leaves.length && !stage.hidden) layout(false); }).observe(stage);
 
   /* Datei wählen / ablegen */
   $('#pick').addEventListener('click', function () { fileIn.click(); });
