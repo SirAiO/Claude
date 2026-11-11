@@ -131,10 +131,28 @@
   .btn.go { background: var(--ok); border-color: var(--ok); }
   .btn.go:hover { background: #17563a; }
 
+  .linkbtn { display: block; margin: 12px auto 0; padding: 6px 4px; border: 0; background: none; cursor: pointer; color: var(--blue); font-size: .92rem; text-decoration: underline; text-underline-offset: 3px; }
+  .linkbtn:hover { color: var(--navy); }
+
+  /* Live-Scanner */
+  #scanner { position: fixed; inset: 0; z-index: 60; background: #000; color: #fff; overflow: hidden; }
+  #cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  .sc-top { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px)); }
+  .sc-btn { height: 46px; min-width: 46px; padding: 0 18px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid rgba(255,255,255,.55); border-radius: 999px; background: rgba(0,0,0,.45); color: #fff; cursor: pointer; font: 400 1.15rem/1 var(--font-label); letter-spacing: .1em; text-transform: uppercase; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  .sc-btn[aria-pressed="true"] { background: #f4c542; color: #14224f; border-color: #f4c542; }
+  #sc-frame { position: absolute; left: 50%; top: 44%; width: min(88vw, 460px); aspect-ratio: 2.1 / 1; transform: translate(-50%, -50%); border: 3px solid #fff; border-radius: 20px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.55); }
+  #sc-frame::after { content: ""; position: absolute; left: 6%; right: 6%; top: 50%; height: 2px; background: #ff5a4d; box-shadow: 0 0 10px #ff5a4d; animation: scanline 2.2s ease-in-out infinite alternate; }
+  @keyframes scanline { from { top: 14%; } to { top: 86%; } }
+  #sc-msg { position: absolute; left: 0; right: 0; top: calc(44% + min(44vw, 230px) / 2.1 + 28px); margin: 0 auto; width: min(88vw, 460px); padding: 12px 16px; border-radius: 16px; background: rgba(0,0,0,.6); text-align: center; font-size: 1rem; line-height: 1.4; }
+  #sc-msg[data-bad="1"] { background: #9b2c20; }
+  @media (prefers-reduced-motion: reduce) { #sc-frame::after { animation: none; } }
+
   /* Blätterheft (Ecke ziehen und umblättern) */
   #flip { position: fixed; inset: 0; z-index: 40; background: var(--table); display: flex; flex-direction: column; gap: 10px;
     padding: calc(12px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); overflow: hidden; }
-  #f-stage { flex: 1; min-height: 0; position: relative; display: grid; place-items: center; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+  #zoom { transform-origin: 50% 50%; will-change: transform; }
+  #f-stage { overflow: hidden; flex: 1; min-height: 0; position: relative; display: grid; place-items: center; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
   #f-stage.grabbing { cursor: grabbing; }
   #book { position: relative; width: calc(var(--W) * 2); height: var(--H); transition: transform .85s cubic-bezier(.45, 0, .2, 1); }
   .leaf { position: absolute; left: 50%; top: 0; width: var(--W); height: var(--H); }
@@ -170,6 +188,11 @@
   #f-label { min-width: 11ch; text-align: center; font: 400 1.35rem/1 var(--font-label); letter-spacing: .08em; text-transform: uppercase; font-variant-numeric: tabular-nums; color: var(--navy); }
   .fclose { border: 1px solid var(--box-line); background: #fff; color: var(--navy); border-radius: 999px; cursor: pointer; font: 400 1.1rem/1 var(--font-label); letter-spacing: .1em; text-transform: uppercase; padding: 12px 18px; }
   .fclose:hover { border-color: var(--navy); }
+  .zgroup { display: flex; align-items: center; gap: 6px; }
+  .zbtn { width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--box-line); background: #fff; color: var(--navy); border-radius: 12px; cursor: pointer; font-size: 22px; line-height: 1; }
+  .zbtn:hover:not(:disabled) { border-color: var(--navy); }
+  .zbtn:disabled { opacity: .35; cursor: default; }
+  .zval { min-width: 4.2ch; padding: 8px 4px; border: 0; background: none; cursor: pointer; color: var(--muted); font: 400 1.05rem/1 var(--font-label); letter-spacing: .08em; font-variant-numeric: tabular-nums; }
   .hint { display: none; width: 100%; text-align: center; font: 400 1rem var(--font-label); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
   @media (orientation: portrait) and (max-width: 700px) { .hint { display: block; order: 5; } }
   @media (max-height: 520px) and (orientation: landscape) {
@@ -177,6 +200,7 @@
     #f-bar { height: 28px; gap: 14px; padding: 0; flex-wrap: nowrap; }
     #f-label { min-width: 0; font-size: 1.05rem; }
     .fclose { padding: 5px 12px; font-size: .95rem; }
+    .zbtn { width: 28px; height: 28px; font-size: 18px; border-radius: 8px; }
     .nav { position: fixed; top: 50%; margin-top: -32px; width: 52px; height: 64px; z-index: 5; background: rgba(255,255,255,.85); }
     #prev { left: max(10px, env(safe-area-inset-left, 0px)); }
     #next { right: max(10px, env(safe-area-inset-right, 0px)); }
@@ -219,14 +243,15 @@
       <div class="plans">
         <div class="plan"><small>Einzelausgabe</small><strong>3,67 €</strong><span>Diese Ausgabe, alle 12 Seiten</span></div>
         <div class="plan best"><small>Digital-Abo</small><strong>9,99 €</strong><span>pro Monat, alle Ausgaben</span></div>
-        <button class="plan scan" id="scan-tile" type="button" aria-expanded="false" aria-controls="scanbox">
+        <button class="plan scan" id="scan-tile" type="button">
           <svg width="30" height="22" viewBox="0 0 30 22" aria-hidden="true"><path d="M1 1h2v20H1zM5 1h1v20H5zM8 1h3v20H8zM13 1h1v20h-1zM16 1h2v20h-2zM20 1h1v20h-1zM23 1h3v20h-3zM28 1h1v20h-1z" fill="#1d2c5e"/></svg>
           <small>Gedruckte Zeitung</small><strong>0,00 €</strong><span>Barcode scannen und freischalten</span>
         </button>
       </div>
+      <button class="linkbtn" id="scan-alt" type="button">Kamera geht nicht? Foto machen oder Zahl eintippen</button>
 
       <section class="scanbox" id="scanbox" hidden aria-labelledby="scan-h">
-        <h4 id="scan-h">Zeitung freischalten</h4>
+        <h4 id="scan-h">Foto oder Zahl</h4>
         <p>Halte die gedruckte Ausgabe bereit. Fotografiere den Barcode unten rechts auf der Titelseite, neben dem Preis. Das Foto wird nur auf deinem Gerät gelesen und nicht gespeichert.</p>
         <button class="btn" id="shot-btn" type="button">Barcode fotografieren</button>
         <input id="shot" type="file" accept="image/*" capture="environment" hidden>
@@ -249,14 +274,29 @@
 </div>
 
 <div id="flip" hidden role="dialog" aria-modal="true" aria-label="Zeitung lesen">
-  <main id="f-stage"><div id="book"></div></main>
+  <main id="f-stage"><div id="zoom"><div id="book"></div></div></main>
   <nav id="f-bar" aria-label="Blättern">
     <button class="nav" id="prev" type="button" aria-label="Zurückblättern">&#8592;</button>
     <div id="f-label" aria-live="polite"></div>
     <button class="nav" id="next" type="button" aria-label="Weiterblättern">&#8594;</button>
+    <div class="zgroup" role="group" aria-label="Zoom">
+      <button class="zbtn" id="zout" type="button" aria-label="Verkleinern">&#8722;</button>
+      <button class="zval" id="zval" type="button" aria-label="Zoom zurücksetzen">100 %</button>
+      <button class="zbtn" id="zin" type="button" aria-label="Vergrößern">+</button>
+    </div>
     <button class="fclose" id="f-close" type="button">Schließen</button>
-    <div class="hint">Handy quer halten für größere Seiten</div>
+    <div class="hint">Handy quer halten für größere Seiten. Mit zwei Fingern zoomen.</div>
   </nav>
+</div>
+
+<div id="scanner" hidden role="dialog" aria-modal="true" aria-label="Barcode scannen">
+  <video id="cam" playsinline muted autoplay></video>
+  <div class="sc-top">
+    <button class="sc-btn" id="sc-torch" type="button" aria-pressed="false" hidden>Licht</button>
+    <button class="sc-btn" id="sc-close" type="button">Schließen</button>
+  </div>
+  <div id="sc-frame" aria-hidden="true"></div>
+  <p id="sc-msg" role="status" aria-live="polite">Halte den Barcode der Zeitung in den Rahmen.</p>
 </div>
 
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
@@ -359,7 +399,7 @@
   function resetPaywall() {
     var s = $("status");
     s.textContent = "Wähle ein Abo oder schalte die Zeitung mit dem Barcode frei."; s.removeAttribute("data-on");
-    $("scanbox").hidden = true; $("scan-tile").setAttribute("aria-expanded", "false");
+    $("scanbox").hidden = true;
     setScan("Noch kein Barcode gelesen.", ""); $("open-book").hidden = true; $("code").value = "";
   }
   document.addEventListener("click", function (ev) {
@@ -377,12 +417,28 @@
     if (state === "ok") s.setAttribute("data-ok", "1"); else s.removeAttribute("data-ok");
     if (state) s.setAttribute("data-on", "1"); else s.removeAttribute("data-on");
   }
-  $("scan-tile").addEventListener("click", function () {
-    var box = $("scanbox"), open = box.hidden;
-    box.hidden = !open; this.setAttribute("aria-expanded", String(open));
-    if (open) box.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  });
+  function showScanbox() {
+    var box = $("scanbox"); box.hidden = false;
+    box.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+  $("scan-alt").addEventListener("click", function () { if ($("scanbox").hidden) showScanbox(); else $("scanbox").hidden = true; });
   $("shot-btn").addEventListener("click", function () { $("shot").click(); });
+
+  /* Live-Scan: Kamera öffnen, Barcode erkennen, bei Treffer sofort freischalten und öffnen */
+  function liveCheck(text) {
+    var c = String(text || "").replace(/\D/g, "");
+    if (c === CODE) { setTimeout(function () { unlock("live"); }, 0); return { ok: true }; }
+    return { ok: false, msg: "Das ist nicht der Barcode der Zeitung vom 9. November 2026." };
+  }
+  $("scan-tile").addEventListener("click", async function () {
+    try { await Scanner.start(liveCheck); }
+    catch (e) {
+      showScanbox();
+      var denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
+      setScan(denied ? "Live-Scan ist hier nicht möglich oder die Kamera wurde nicht erlaubt. Mach stattdessen ein Foto vom Barcode oder tippe die Zahl ein."
+                     : "Auf diesem Gerät ist kein Live-Scan möglich. Mach ein Foto vom Barcode oder tippe die Zahl ein.", "on");
+    }
+  });
 
   function handleCode(raw) {
     var c = String(raw || "").replace(/\D/g, "");
@@ -394,13 +450,14 @@
     }
     return false;
   }
-  function unlock() {
+  function unlock(source) {
     saveUnlock(); renderIssues();
     var forThis = current && current.real;
     setScan(forThis ? "Barcode erkannt. Die Ausgabe vom 9. November 2026 ist freigeschaltet."
                     : "Barcode erkannt. Die Ausgabe vom 9. November 2026 ist freigeschaltet. Diese ältere Ausgabe bleibt gesperrt, dafür brauchst du die Zeitung von diesem Tag.", "ok");
     var b = $("open-book"); b.hidden = false; b.textContent = "Zeitung vom 9. November lesen";
-    if (forThis) setTimeout(function () { if (!$("reader").hidden) startBook(); }, 900);
+    if (source === "live") { $("scanbox").hidden = false; setTimeout(startBook, 250); }
+    else if (forThis) setTimeout(function () { if (!$("reader").hidden) startBook(); }, 900);
   }
   function startBook() { Flip.open(PAGES, $("open-book")); }
   $("open-book").addEventListener("click", startBook);
@@ -464,11 +521,104 @@
     }
   });
 
+  /* Live-Kamera */
+  var Scanner = (function () {
+    var ov = $("scanner"), video = $("cam"), msg = $("sc-msg"), frame = $("sc-frame"), torchB = $("sc-torch");
+    var stream = null, track = null, timer = null, tick = 0, det = null, onDone = null, last = "", lastAt = 0, busyDec = false, badTimer = null;
+    var canvas = document.createElement("canvas");
+    var HINT = "Halte den Barcode der Zeitung in den Rahmen.";
+    async function start(cb) {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { var er = new Error("unsupported"); er.name = "NotSupportedError"; throw er; }
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+      onDone = cb; last = ""; tick = 0;
+      video.srcObject = stream;
+      ov.hidden = false; $("reader").inert = true; $("site").inert = true;
+      try { await video.play(); } catch (e) {}
+      track = stream.getVideoTracks()[0];
+      var caps = (track && track.getCapabilities) ? track.getCapabilities() : {};
+      torchB.hidden = !caps.torch; torchB.setAttribute("aria-pressed", "false");
+      if (caps.focusMode && caps.focusMode.indexOf("continuous") > -1) { try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (e) {} }
+      det = null;
+      if (window.BarcodeDetector) { try { det = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a"] }); } catch (e) { det = null; } }
+      msg.textContent = HINT; msg.removeAttribute("data-bad");
+      clearInterval(timer); timer = setInterval(scanOnce, 140);
+    }
+    function stop() {
+      clearInterval(timer); timer = null; clearTimeout(badTimer);
+      if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+      stream = null; track = null; video.srcObject = null; ov.hidden = true;
+      $("reader").inert = false; $("site").inert = !$("reader").hidden;
+    }
+    async function scanOnce() {
+      if (busyDec || video.readyState < 2 || !video.videoWidth) return;
+      busyDec = true;
+      try {
+        var vw = video.videoWidth, vh = video.videoHeight, cw = ov.clientWidth, ch = ov.clientHeight;
+        var s = Math.max(cw / vw, ch / vh), ox = (cw - vw * s) / 2, oy = (ch - vh * s) / 2, fr = frame.getBoundingClientRect(), pad = .12;
+        var fx = (fr.left - ox) / s, fy = (fr.top - oy) / s, fw = fr.width / s, fh = fr.height / s;
+        var sx = Math.max(0, fx - fw * pad), sy = Math.max(0, fy - fh * pad);
+        var sw = Math.min(vw - sx, fw * (1 + 2 * pad)), sh = Math.min(vh - sy, fh * (1 + 2 * pad));
+        if (sw < 20 || sh < 20) return;
+        var out = Math.min(1000, sw), k2 = out / sw;
+        canvas.width = Math.round(out); canvas.height = Math.max(1, Math.round(sh * k2));
+        canvas.getContext("2d", { willReadFrequently: true }).drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+        var text = null;
+        if (det) { try { var r = await det.detect(canvas); if (r.length) text = r[0].rawValue; } catch (e) {} }
+        if (!text && window.ZXing) {
+          text = zxDecode(canvas); tick++;
+          if (!text && tick % 3 === 0) text = zxDecode(rotated(canvas, 90));
+        }
+        if (text && stream) result(text);
+      } finally { busyDec = false; }
+    }
+    function result(text) {
+      var now = Date.now();
+      if (text === last && now - lastAt < 1500) { lastAt = now; return; }
+      last = text; lastAt = now;
+      var r = onDone(text);
+      if (r && r.ok) { try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {} stop(); return; }
+      msg.textContent = (r && r.msg) || "Barcode nicht erkannt."; msg.setAttribute("data-bad", "1");
+      clearTimeout(badTimer); badTimer = setTimeout(function () { msg.textContent = HINT; msg.removeAttribute("data-bad"); }, 2600);
+    }
+    torchB.addEventListener("click", async function () {
+      var on = torchB.getAttribute("aria-pressed") !== "true";
+      try { await track.applyConstraints({ advanced: [{ torch: on }] }); torchB.setAttribute("aria-pressed", String(on)); } catch (e) {}
+    });
+    $("sc-close").addEventListener("click", function () { stop(); showScanbox(); });
+    document.addEventListener("visibilitychange", function () { if (document.hidden && stream) stop(); });
+    return { start: start, stop: stop, isOpen: function () { return !ov.hidden; } };
+  })();
+
   /* Blätterheft */
   var Flip = (function () {
     var q = function (s) { return document.querySelector(s); };
     var flip = q("#flip"), stage = q("#f-stage"), book = q("#book"), prevB = q("#prev"), nextB = q("#next"), label = q("#f-label");
     var shadowEl, J = null, slid = false, sheets = [], leaves = [], angle = [], urls = [], k = 0, n = 0, W = 0, H = 0, ratio = 0.7, busy = false, opener = null;
+    var zoomEl = q("#zoom"), zs = 1, zx = 0, zy = 0, ptrs = {}, pan = null, pinch = null, zvalB = q("#zval"), zinB = q("#zin"), zoutB = q("#zout"), ZMAX = 4;
+
+    /* Zoom: Verschieben und Skalieren des ganzen Hefts, solange gezoomt ist wird mit einem Finger geschoben statt geblättert */
+    function clampZoom() {
+      if (zs <= 1.001) { zs = 1; zx = 0; zy = 0; return; }
+      var v = view(k, slid), vw = ((v.hasL ? W : 0) + (v.hasR ? W : 0)) || W, sr = stage.getBoundingClientRect();
+      var mx = Math.max(0, (vw * zs - sr.width) / 2 + 24), my = Math.max(0, (H * zs - sr.height) / 2 + 24);
+      zx = Math.max(-mx, Math.min(mx, zx)); zy = Math.max(-my, Math.min(my, zy));
+    }
+    function applyZoom(smooth) {
+      clampZoom();
+      zoomEl.style.transition = smooth ? "transform .2s ease-out" : "none";
+      zoomEl.style.transform = "translate(" + zx.toFixed(1) + "px," + zy.toFixed(1) + "px) scale(" + zs.toFixed(3) + ")";
+      zvalB.textContent = Math.round(zs * 100) + " %";
+      zoutB.disabled = zs <= 1.001; zinB.disabled = zs >= ZMAX - 0.001;
+      stage.style.cursor = zs > 1 ? "move" : "";
+    }
+    function zoomAt(f, fx, fy, smooth) {
+      var ns = Math.max(1, Math.min(ZMAX, zs * f)); if (Math.abs(ns - zs) < 0.0005) return;
+      var r = stage.getBoundingClientRect(), dx = fx - (r.left + r.width / 2), dy = fy - (r.top + r.height / 2), kk = ns / zs;
+      zx = dx - (dx - zx) * kk; zy = dy - (dy - zy) * kk; zs = ns;
+      applyZoom(smooth);
+    }
+    function zoomCenter(f) { var r = stage.getBoundingClientRect(); zoomAt(f, r.left + r.width / 2, r.top + r.height / 2, true); }
+    function resetZoom() { zs = 1; zx = 0; zy = 0; applyZoom(true); }
 
     /* Seite 1 steht allein, dann Doppelseiten. Die letzten ein bis zwei Seiten (Quellen) stehen wieder einzeln. */
     function buildSheets(count) {
@@ -548,6 +698,7 @@
       var pages = [v.hasL ? sheets[k - 1][1] : null, v.hasR ? sheets[k][0] : null].filter(Boolean);
       label.textContent = (pages.length > 1 ? "Seiten " + pages.join("–") : "Seite " + pages[0]) + " / " + n;
       prevB.disabled = k <= 0; nextB.disabled = !canForward();
+      applyZoom(false);
     }
 
     /* Ecke ziehen: Das Blatt wird an der Mittelsenkrechten zwischen Ecke C und Finger P gefaltet. */
@@ -672,6 +823,21 @@
       return [d.s * (e.clientX - (r.left + r.width / 2)), e.clientY - r.top];
     }
     stage.addEventListener("pointerdown", function (e) {
+      ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(ptrs);
+      if (ids.length === 2) {
+        if (drag && drag.moved) return;
+        drag = null; pan = null;
+        var a = ptrs[ids[0]], b = ptrs[ids[1]];
+        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+        return;
+      }
+      if (ids.length > 2) return;
+      if (leaves.length && zs > 1 && e.button <= 0) {
+        pan = { x: e.clientX, y: e.clientY };
+        stage.setPointerCapture(e.pointerId); stage.classList.add("grabbing");
+        return;
+      }
       if (busy || !leaves.length || e.button > 0) return;
       var r = book.getBoundingClientRect(), spine = r.left + r.width / 2;
       var v = view(k, slid);
@@ -685,6 +851,24 @@
       stage.setPointerCapture(e.pointerId);
     });
     stage.addEventListener("pointermove", function (e) {
+      if (ptrs[e.pointerId]) ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
+      if (pinch) {
+        var ids = Object.keys(ptrs);
+        if (ids.length >= 2) {
+          var a = ptrs[ids[0]], b = ptrs[ids[1]], d = Math.hypot(a.x - b.x, a.y - b.y) || 1, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+          zx += mx - pinch.mx; zy += my - pinch.my;
+          zoomAt(d / pinch.d, mx, my, false);
+          if (zs <= 1.001) { zx = 0; zy = 0; }
+          applyZoom(false);
+          pinch.d = d; pinch.mx = mx; pinch.my = my;
+        }
+        return;
+      }
+      if (pan) {
+        zx += e.clientX - pan.x; zy += e.clientY - pan.y; pan.x = e.clientX; pan.y = e.clientY;
+        applyZoom(false);
+        return;
+      }
       if (!drag) return;
       if (drag.slide) return;
       var f = scenePt(e, drag);
@@ -698,6 +882,9 @@
       render(drag.sc, drag.P);
     });
     function endDrag(e) {
+      delete ptrs[e.pointerId];
+      if (pinch) { if (Object.keys(ptrs).length < 2) pinch = null; return; }
+      if (pan) { pan = null; stage.classList.remove("grabbing"); return; }
       if (!drag) return;
       var d = drag; drag = null; stage.classList.remove("grabbing");
       if (d.slide) { if (Math.abs(e.clientX - d.x0) < 6 || (e.clientX - d.x0) * d.dir < 0) turn(d.dir); return; }
@@ -713,11 +900,23 @@
     prevB.addEventListener("click", function () { turn(-1); });
     nextB.addEventListener("click", function () { turn(1); });
     q("#f-close").addEventListener("click", close);
+    zinB.addEventListener("click", function () { zoomCenter(1.5); });
+    zoutB.addEventListener("click", function () { zoomCenter(1 / 1.5); });
+    zvalB.addEventListener("click", resetZoom);
+    stage.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var f = Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0018));
+      zoomAt(f, e.clientX, e.clientY, false);
+    }, { passive: false });
     document.addEventListener("keydown", function (e) {
+      if (Scanner.isOpen()) { if (e.key === "Escape") Scanner.stop(); return; }
       if (flip.hidden) {
         if (e.key === "Escape" && !$("reader").hidden) closeIssue();
         return;
       }
+      if (e.key === "+" || e.key === "=") { e.preventDefault(); zoomCenter(1.5); return; }
+      if (e.key === "-" || e.key === "_") { e.preventDefault(); zoomCenter(1 / 1.5); return; }
+      if (e.key === "0") { e.preventDefault(); resetZoom(); return; }
       if (e.key === "Escape") { close(); }
       else if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); turn(1); }
       else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); turn(-1); }
@@ -726,6 +925,7 @@
 
     function open(list, from) {
       opener = from || null; urls = list; n = list.length;
+      zs = 1; zx = 0; zy = 0; ptrs = {}; pan = null; pinch = null; applyZoom(false);
       label.textContent = "Seiten werden geladen …";
       flip.hidden = false; $("reader").inert = true; $("site").inert = true; document.body.classList.add("locked");
       var im = new Image();
