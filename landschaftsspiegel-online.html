@@ -603,8 +603,39 @@
       var mx = Math.max(0, (vw * zs - sr.width) / 2 + 24), my = Math.max(0, (H * zs - sr.height) / 2 + 24);
       zx = Math.max(-mx, Math.min(mx, zx)); zy = Math.max(-my, Math.min(my, zy));
     }
+    /* Beim Heranzoomen werden für die sichtbaren Seiten schärfere Bilder nachgeladen (höchstens 3 gleichzeitig im Speicher) */
+    var hiList = [], hiOn = {}, hiLoading = {}, hiFail = {}, hiOrder = [];
+    function srcFor(p) { return hiOn[p] ? hiList[p - 1] : urls[p - 1]; }
+    function setSrc(p) { var s = srcFor(p); book.querySelectorAll('img[data-p="' + p + '"]').forEach(function (im) { im.src = s; }); }
+    function visiblePages() {
+      var v = view(k, slid), a = [];
+      if (v.hasL && sheets[k - 1] && sheets[k - 1][1]) a.push(sheets[k - 1][1]);
+      if (v.hasR && sheets[k] && sheets[k][0]) a.push(sheets[k][0]);
+      return a;
+    }
+    function upgradeVisible() {
+      var vis = visiblePages();
+      vis.forEach(function (p) {
+        if (hiOn[p]) { hiOrder.splice(hiOrder.indexOf(p), 1); hiOrder.push(p); return; }
+        if (hiLoading[p] || hiFail[p] || !hiList[p - 1]) return;
+        hiLoading[p] = true;
+        var im = new Image();
+        im.onload = function () {
+          hiLoading[p] = false; hiOn[p] = true; hiOrder.push(p); setSrc(p);
+          var guard = hiOrder.length;
+          while (hiOrder.length > 3 && guard-- > 0) {
+            var o = hiOrder.shift();
+            if (visiblePages().indexOf(o) > -1) { hiOrder.push(o); continue; }
+            hiOn[o] = false; setSrc(o);
+          }
+        };
+        im.onerror = function () { hiLoading[p] = false; hiFail[p] = true; };
+        im.src = hiList[p - 1];
+      });
+    }
     function applyZoom(smooth) {
       clampZoom();
+      if (zs > 1.3 && leaves.length) upgradeVisible();
       zoomEl.style.transition = smooth ? "transform .2s ease-out" : "none";
       zoomEl.style.transform = "translate(" + zx.toFixed(1) + "px," + zy.toFixed(1) + "px) scale(" + zs.toFixed(3) + ")";
       zvalB.textContent = Math.round(zs * 100) + " %";
@@ -634,7 +665,7 @@
 
     function face(cls, p) {
       var d = document.createElement("div"); d.className = "face " + cls;
-      if (p) { var im = new Image(); im.src = urls[p - 1]; im.alt = "Seite " + p; im.draggable = false; d.append(im); }
+      if (p) { var im = new Image(); im.src = srcFor(p); im.setAttribute("data-p", p); im.alt = "Seite " + p; im.draggable = false; d.append(im); }
       else d.classList.add("blank");
       return d;
     }
@@ -731,7 +762,7 @@
       root.style.transform = "scaleX(" + s + ")";
       function mk(parent, cls, p) {
         var f = el("cf " + cls + (p ? "" : " blank") + (s < 0 ? " mir" : ""), parent);
-        if (p) { var im = new Image(); im.src = urls[p - 1]; im.draggable = false; f.append(im); }
+        if (p) { var im = new Image(); im.src = srcFor(p); im.setAttribute("data-p", p); im.draggable = false; f.append(im); }
         return f;
       }
       sc.rv = el("crv", root);
@@ -925,6 +956,8 @@
 
     function open(list, from) {
       opener = from || null; urls = list; n = list.length;
+      hiList = list.map(function (u) { return u.replace("landschaftsspiegel-seiten/", "landschaftsspiegel-seiten/hi/"); });
+      hiOn = {}; hiLoading = {}; hiFail = {}; hiOrder = [];
       zs = 1; zx = 0; zy = 0; ptrs = {}; pan = null; pinch = null; applyZoom(false);
       label.textContent = "Seiten werden geladen …";
       flip.hidden = false; $("reader").inert = true; $("site").inert = true; document.body.classList.add("locked");
