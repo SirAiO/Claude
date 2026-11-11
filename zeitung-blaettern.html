@@ -72,6 +72,7 @@
   #stage.grabbing { cursor: grabbing; }
   #book { position: relative; width: calc(var(--W) * 2); height: var(--H); transition: transform .85s cubic-bezier(.45, 0, .2, 1); }
   .leaf { position: absolute; left: 50%; top: 0; width: var(--W); height: var(--H); }
+  .leaf.sliding { filter: drop-shadow(0 6px 12px rgba(0,0,0,.28)); }
   .leaf .face.back { display: none; }
   .leaf.flipped .face.back { display: block; }
   .leaf.flipped .face.front { display: none; }
@@ -146,10 +147,10 @@
 <section id="landing">
   <div class="drop" id="drop">
     <h1>Zeitung blättern</h1>
-    <p>PDF hierher ziehen oder auswählen. Seite 1 steht allein, dann folgen die Doppelseiten, die letzten beiden Seiten stehen wieder einzeln.</p>
+    <p>PDF hierher ziehen oder auswählen. Seite 1 steht allein, dann folgen die Doppelseiten. Die Seiten am Ende (Quellen) stehen wieder einzeln.</p>
     <button class="pick" id="pick" type="button">PDF auswählen</button>
     <input type="file" id="file" accept="application/pdf,.pdf" hidden>
-    <div class="seq" id="seq" aria-label="Reihenfolge der Ansichten bei 13 Seiten"></div>
+    <div class="seq" id="seq" aria-label="Reihenfolge der Ansichten bei 14 Seiten"></div>
     <div id="progress" hidden><div class="bar"><i id="fill"></i></div><span id="ptext"></span></div>
     <div id="err" role="alert"></div>
   </div>
@@ -173,37 +174,33 @@
   var stage = $('#stage'), book = $('#book'), landing = $('#landing'), bar = $('#bar'),
       drop = $('#drop'), fileIn = $('#file'), prog = $('#progress'), fill = $('#fill'), ptext = $('#ptext'),
       err = $('#err'), prevB = $('#prev'), nextB = $('#next'), label = $('#label');
-  var shadowEl, sheets = [], leaves = [], angle = [], urls = [], k = 0, n = 0, W = 0, H = 0, ratio = 0.7, busy = false;
+  var shadowEl, J = null, slid = false, sheets = [], leaves = [], angle = [], urls = [], k = 0, n = 0, W = 0, H = 0, ratio = 0.7, busy = false;
 
-  /* Blätter: jedes Blatt hat Vorder- und Rückseite. 13 Seiten ergeben 7 Blätter:
-     (1|2) (3|4) (5|6) (7|8) (9|10) (11|12) (-|13) */
+  /* Blätter: jedes Blatt hat Vorder- und Rückseite. Die letzten ein bis zwei Seiten (Quellen) stehen einzeln.
+     14 Seiten: (1|2) (3|4) (5|6) (7|8) (9|10) (11|12) (13|14)
+     J ist der Index des Schlussblatts. Bei k = J zeigt die Ansicht erst die 12 allein,
+     danach schiebt sie sich zur 13 (slid = true); von dort lässt sich zur 14 weiterblättern. */
   function buildSheets(count) {
-    var s = [], p;
-    if (count === 1) return [[1, null]];
-    if (count % 2 === 1) {
-      for (p = 1; p <= count - 2; p += 2) s.push([p, p + 1]);
-      s.push([null, count]);
-    } else {
-      for (p = 1; p <= count - 1; p += 2) s.push([p, p + 1]);
+    var s = [], p, head = count % 2 ? count - 1 : count - 2;
+    if (head < 2) {
+      for (p = 1; p <= count; p += 2) s.push([p, p + 1 <= count ? p + 1 : null]);
+      return { sheets: s, J: null };
     }
-    return s;
+    for (p = 1; p <= head - 1; p += 2) s.push([p, p + 1]);
+    s.push([head + 1, count % 2 ? null : count]);
+    return { sheets: s, J: head / 2 };
   }
 
   /* Übersicht der Ansichten auf der Startseite */
   (function () {
-    var s = buildSheets(13), views = [], i, box = $('#seq');
-    for (i = 0; i <= s.length; i++) {
-      views.push([i > 0 ? s[i - 1][1] : null, i < s.length ? s[i][0] : null]);
-    }
+    var views = [[1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12], [13], [14]], box = $('#seq');
     views.forEach(function (v) {
       var f = document.createElement('figure'), d = document.createElement('div'), c = document.createElement('figcaption');
       d.className = 'v';
-      var single = !v[0] || !v[1];
       v.forEach(function (pg) {
-        if (pg) { var e = document.createElement('div'); e.className = 'p'; e.textContent = pg; d.append(e); }
-        else if (!single) { var x = document.createElement('div'); x.className = 'empty'; d.append(x); }
+        var e = document.createElement('div'); e.className = 'p'; e.textContent = pg; d.append(e);
       });
-      c.textContent = v.filter(Boolean).join('–');
+      c.textContent = v.join('–');
       f.append(d, c); box.append(f);
     });
   })();
@@ -253,7 +250,7 @@
   }
   function build() {
     book.innerHTML = ''; shadowEl = el('bshadow', book); leaves = []; angle = []; k = 0; busy = false;
-    sheets = buildSheets(n);
+    var bs = buildSheets(n); sheets = bs.sheets; J = bs.J; slid = false;
     sheets.forEach(function (s) {
       var leaf = document.createElement('div'); leaf.className = 'leaf';
       leaf.append(face('front', s[0]), face('back', s[1]));
@@ -269,13 +266,24 @@
     if (instant) { book.style.transition = 'none'; updateOffset(k); void book.offsetWidth; book.style.transition = ''; }
     else updateOffset(k);
   }
-  function singleLeftAt(kk) { return kk > 0 && (kk >= leaves.length || !sheets[kk][0]); }
-  function updateOffset(kk) {
-    var x = kk === 0 && leaves.length > 1 ? -W / 2 : singleLeftAt(kk) ? W / 2 : 0;
+  /* Welche Seiten sind in Ansicht (kk, sl) sichtbar? */
+  function view(kk, sl) {
+    return {
+      hasL: kk > 0 && !(J !== null && sl && kk <= J),
+      hasR: kk < leaves.length && !!sheets[kk][0] && !(J !== null && !sl && kk === J)
+    };
+  }
+  function updateOffset(kk, sl) {
+    var v = view(kk, sl === undefined ? slid : sl);
+    var x = !v.hasL && v.hasR ? -W / 2 : v.hasL && !v.hasR ? W / 2 : 0;
     book.style.transform = 'translateX(' + x + 'px)';
-    var hasL = kk > 0, hasR = kk < leaves.length && !!sheets[kk][0];
-    shadowEl.style.left = 'calc(50% - ' + (hasL ? W : 0) + 'px)';
-    shadowEl.style.width = ((hasL ? W : 0) + (hasR ? W : 0)) + 'px';
+    shadowEl.style.left = 'calc(50% - ' + (v.hasL ? W : 0) + 'px)';
+    shadowEl.style.width = ((v.hasL ? W : 0) + (v.hasR ? W : 0)) + 'px';
+  }
+  function canForward() {
+    if (k >= leaves.length) return false;
+    if (J !== null && k === J && slid && sheets[k][1] == null) return false;
+    return true;
   }
   function setLeaf(i, a, dx) {
     /* Ohne 3D: ein umgeblättertes Blatt liegt links vom Falz und zeigt seine Rückseite */
@@ -283,18 +291,25 @@
     leaves[i].classList.toggle('flipped', fl);
     leaves[i].style.transform = 'translateX(' + ((fl ? -W : 0) + (dx || 0)) + 'px)';
   }
+  function isShown(i) {
+    if (i < k - 2 || i > k + 1) return false;
+    if (J === null) return true;
+    return slid ? i >= J : i < J;
+  }
   function settle() {
     leaves.forEach(function (l, i) {
-      l.style.visibility = (i >= k - 2 && i <= k + 1) ? '' : 'hidden'; var a = i < k ? 180 : 0; angle[i] = a; setLeaf(i, a);
+      l.style.visibility = isShown(i) ? '' : 'hidden'; l.classList.remove('sliding');
+      var a = i < k ? 180 : 0; angle[i] = a; setLeaf(i, a);
       l.style.zIndex = i < k ? i + 1 : leaves.length - i;
     });
+    shadowEl.style.visibility = ''; shadowEl.style.transition = '';
     updateOffset(k); updateUI();
   }
   function updateUI() {
-    var l = k > 0 ? sheets[k - 1][1] : null, r = k < leaves.length ? sheets[k][0] : null;
-    var pages = [l, r].filter(Boolean);
+    var v = view(k, slid);
+    var pages = [v.hasL ? sheets[k - 1][1] : null, v.hasR ? sheets[k][0] : null].filter(Boolean);
     label.textContent = (pages.length > 1 ? 'Seiten ' + pages.join('–') : 'Seite ' + pages[0]) + ' / ' + n;
-    prevB.disabled = k <= 0; nextB.disabled = k >= leaves.length;
+    prevB.disabled = k <= 0; nextB.disabled = !canForward();
   }
 
   /* Ecke ziehen: Das Blatt wird an der Mittelsenkrechten zwischen Ecke C und Finger P gefaltet.
@@ -392,30 +407,30 @@
     await animP(sc, from, to, dur, arc);
     sc.root.remove(); k = newK; settle(); busy = false;
   }
-  /* Letzte Seite: kein Umblättern, die Ansicht schiebt sich seitlich weiter */
+  /* Von der 12 zur 13 (und zurück) kein Umblättern: die Ansicht schiebt sich seitlich weiter */
   function isSlide(dir) {
-    if (dir > 0) return k === leaves.length - 1 && !sheets[k][0];
-    return k === leaves.length && k > 0 && !sheets[k - 1][0];
+    return J !== null && k === J && (dir > 0 ? !slid : slid);
   }
   function slide(dir) {
     busy = true;
-    var a = leaves.length - 2, b = leaves.length - 1, dist = stage.clientWidth / 2 + W;
-    var dur = 750, t0 = performance.now();
-    leaves[b].style.zIndex = 1000; leaves[a].style.zIndex = 999;
-    leaves.forEach(function (l, i) { if (i < a) l.style.visibility = 'hidden'; });
-    var from = dir > 0 ? 0 : 1, to = dir > 0 ? 1 : 0;
+    var a = J - 1, b = J, dist = stage.clientWidth / 2 + W, dur = 800, t0 = performance.now(), newSlid = dir > 0;
+    leaves.forEach(function (l, i) { l.style.visibility = (i === a || i === b) ? '' : 'hidden'; });
+    leaves[a].style.zIndex = 999; leaves[b].style.zIndex = 1000;
+    leaves[a].classList.add('sliding'); leaves[b].classList.add('sliding');
+    shadowEl.style.visibility = 'hidden';
+    /* Das Heft springt sofort in die Zielposition, die beiden Blätter gleichen das mit ihrer Verschiebung aus. */
+    book.style.transition = 'none'; updateOffset(k, newSlid); void book.offsetWidth; book.style.transition = '';
     (function step(t) {
-      var p = Math.min(1, (t - t0) / dur), e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
-      var q = from + (to - from) * e;
-      setLeaf(a, 180, -dist * q);
-      setLeaf(b, 180, dist * (1 - q));
+      var p = Math.min(1, (t - t0) / dur), q = ease(p);
+      if (newSlid) { setLeaf(a, 180, W - dist * q); setLeaf(b, 0, dist * (1 - q)); }
+      else { setLeaf(b, 0, -W + dist * q); setLeaf(a, 180, -dist * (1 - q)); }
       if (p < 1) requestAnimationFrame(step);
-      else { k += dir; settle(); busy = false; }
+      else { slid = newSlid; settle(); busy = false; }
     })(t0);
   }
   function turn(dir) {
     if (busy || !leaves.length) return;
-    if (!(dir > 0 && k < leaves.length || dir < 0 && k > 0)) return;
+    if (dir > 0 && !canForward() || dir < 0 && k <= 0) return;
     if (isSlide(dir)) { slide(dir); return; }
     var i = dir > 0 ? k : k - 1, sc = mkScene(dir, i, H);
     render(sc, [W, H]);
@@ -431,9 +446,10 @@
   stage.addEventListener('pointerdown', function (e) {
     if (busy || !leaves.length || e.button > 0) return;
     var r = book.getBoundingClientRect(), spine = r.left + r.width / 2;
-    var mid = singleLeftAt(k) ? spine - W / 2 : spine;
+    var v = view(k, slid);
+    var mid = v.hasL && !v.hasR ? spine - W / 2 : !v.hasL && v.hasR ? spine + W / 2 : spine;
     var dir = e.clientX >= mid ? 1 : -1;
-    if (dir > 0 && k >= leaves.length) dir = -1;
+    if (dir > 0 && !canForward()) dir = -1;
     if (dir < 0 && k <= 0) dir = 1;
     drag = { slide: isSlide(dir), dir: dir, s: dir, i: dir > 0 ? k : k - 1, x0: e.clientX, moved: false, vx: 0, lx: 0 };
     var f0 = scenePt(e, drag);
