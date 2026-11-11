@@ -129,6 +129,7 @@
 
 
   /* Letztes Feld: sieht nach weiteren Ausgaben aus und führt zur Paywall */
+  .issue h3 a::after { z-index: 3; }
   .issue.more .stack { position: relative; margin: 0 12px 10px 0; }
   .issue.more .sheet { position: absolute; inset: 0; border: 1px solid #c4cde0; border-radius: 12px; background: #eef3fb; }
   .issue.more .s1 { transform: translate(6px, 5px) rotate(1.5deg); background: #f7f9fd; }
@@ -521,7 +522,7 @@
     return '<article class="issue more"><div class="stack">' +
       '<div class="sheet s2"></div><div class="sheet s1"></div>' +
       coverHTML(ghost).replace('class="cover"', 'class="cover blurred" aria-hidden="true"') +
-      '<span class="more-badge" aria-hidden="true">' + LOCK.replace('width="13" height="15"', 'width="15" height="17"').replace(/#4a5780/g, "#1d2c5e") + '+ 24 weitere</span></div>' +
+      '<span class="more-badge" aria-hidden="true">' + LOCK.replace('width="13" height="15"', 'width="15" height="17"').replace(/#4a5780/g, "#1d2c5e") + '+ 342 weitere</span></div>' +
       '<div class="top"><p class="kicker">Archiv</p></div>' +
       '<h3><a href="#" class="open" data-id="more">Weitere Ausgaben</a></h3>' + lockHTML(false) + '</article>';
   }
