@@ -17,6 +17,9 @@
     --black: #0a0d18;
     --table: #cdd8ea;
     --ok: #1f6b46;
+    --err: #b3261e;
+    --err-ink: #8c1d18;
+    --err-bg: #fdecea;
     --font-display: "Anton", Impact, "Arial Narrow", sans-serif;
     --font-label: "Bebas Neue", "Arial Narrow", Impact, sans-serif;
     --font-body: "Source Serif 4", Georgia, "Times New Roman", serif;
@@ -191,8 +194,14 @@
   .btn.ghost { background: #fff; color: var(--navy); margin-top: 8px; }
   .btn.ghost:hover { background: #eaf1fb; }
   .status { min-height: 3.2em; margin: 12px 0 0; padding: 9px 12px; background: #fff; border: 1px solid var(--box-line); border-radius: 14px; font-size: .9rem; line-height: 1.35; }
-  .status[data-on="1"] { border-color: var(--navy); }
-  .status[data-ok="1"] { border-color: var(--ok); color: var(--ok); font-weight: 600; }
+  .status[data-state] { position: relative; padding-left: 46px; font-weight: 600; }
+  .status[data-state]::before { content: ""; position: absolute; left: 13px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 50%; color: #fff; font: 700 .95rem/22px Arial, sans-serif; text-align: center; }
+  .status[data-state="err"] { background: var(--err-bg); border: 2px solid var(--err); color: var(--err-ink); }
+  .status[data-state="err"]::before { content: "!"; background: var(--err); }
+  .status[data-state="ok"] { background: #e8f5ee; border: 2px solid var(--ok); color: var(--ok); }
+  .status[data-state="ok"]::before { content: "\2713"; background: var(--ok); }
+  .status[data-state="info"] { border-color: var(--navy); font-weight: 400; padding-left: 12px; }
+  .status[data-state="info"]::before { display: none; }
   .fine { margin: 10px 0 0; font-size: .78rem; line-height: 1.4; color: var(--muted); text-align: center; }
 
   /* Freischalten per Barcode */
@@ -599,7 +608,7 @@
   }
   function resetPaywall() {
     var s = $("status");
-    s.textContent = "Wähle ein Abo oder schalte die Zeitung mit dem Barcode frei."; s.removeAttribute("data-on");
+    s.textContent = "Wähle ein Abo oder schalte die Zeitung mit dem Barcode frei."; s.removeAttribute("data-state");
     $("scanbox").hidden = true;
     setScan("Noch kein Barcode gelesen.", ""); $("open-book").hidden = true; $("code").value = "";
   }
@@ -626,15 +635,14 @@
     document.querySelectorAll(".menu button").forEach(function (b) { b.setAttribute("aria-current", String(b.getAttribute("data-go") === cur)); });
   }
   window.addEventListener("scroll", function () { if (!spyTick) { spyTick = true; requestAnimationFrame(spy); } }, { passive: true });
-  function nextMsg() { var s = $("status"); s.textContent = MSGS[mi % MSGS.length]; s.setAttribute("data-on", "1"); mi++; }
+  function nextMsg() { var s = $("status"); s.textContent = MSGS[mi % MSGS.length]; s.setAttribute("data-state", "err"); mi++; }
   $("buy").addEventListener("click", nextMsg);
   $("login").addEventListener("click", nextMsg);
 
   /* Barcode scannen */
   function setScan(text, state) {
     var s = $("scan-status"); s.textContent = text;
-    if (state === "ok") s.setAttribute("data-ok", "1"); else s.removeAttribute("data-ok");
-    if (state) s.setAttribute("data-on", "1"); else s.removeAttribute("data-on");
+    if (state) s.setAttribute("data-state", state); else s.removeAttribute("data-state");
   }
   function showScanbox() {
     var box = $("scanbox"); box.hidden = false;
@@ -655,7 +663,7 @@
       showScanbox();
       var denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
       setScan(denied ? "Live-Scan ist hier nicht möglich oder die Kamera wurde nicht erlaubt. Mach stattdessen ein Foto vom Barcode oder tippe die Zahl ein."
-                     : "Auf diesem Gerät ist kein Live-Scan möglich. Mach ein Foto vom Barcode oder tippe die Zahl ein.", "on");
+                     : "Auf diesem Gerät ist kein Live-Scan möglich. Mach ein Foto vom Barcode oder tippe die Zahl ein.", "err");
     }
   });
 
@@ -663,9 +671,9 @@
     var c = String(raw || "").replace(/\D/g, "");
     if (c === CODE) { unlock(); return true; }
     if (c.length === 13 || c.length === 8 || c.length === 12) {
-      setScan("Dieser Barcode passt zu keiner Ausgabe auf dieser Seite. Fotografiere die Titelseite der gedruckten Zeitung vom 9. November 2026.", "on");
+      setScan("Dieser Barcode passt zu keiner Ausgabe auf dieser Seite. Fotografiere die Titelseite der gedruckten Zeitung vom 9. November 2026.", "err");
     } else {
-      setScan("Die Zahl unter dem Barcode hat 13 Ziffern. Bitte prüfe deine Eingabe.", "on");
+      setScan("Die Zahl unter dem Barcode hat 13 Ziffern. Bitte prüfe deine Eingabe.", "err");
     }
     return false;
   }
@@ -730,13 +738,13 @@
   $("shot").addEventListener("change", async function () {
     var f = this.files && this.files[0]; this.value = "";
     if (!f) return;
-    setScan("Barcode wird gelesen …", "on");
+    setScan("Barcode wird gelesen …", "info");
     try {
       var text = await readBarcode(f);
       if (text) handleCode(text);
-      else setScan("Kein Barcode erkannt. Halte die Zeitung gerade, geh näher heran und achte auf gutes Licht. Du kannst die Zahl auch eintippen.", "on");
+      else setScan("Kein Barcode erkannt. Halte die Zeitung gerade, geh näher heran und achte auf gutes Licht. Du kannst die Zahl auch eintippen.", "err");
     } catch (e) {
-      setScan("Das Foto konnte nicht gelesen werden. Versuche es noch einmal oder tippe die Zahl ein.", "on");
+      setScan("Das Foto konnte nicht gelesen werden. Versuche es noch einmal oder tippe die Zahl ein.", "err");
     }
   });
 
