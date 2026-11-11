@@ -75,7 +75,7 @@
   .feature .toc b { font: 400 1.25rem/1 var(--font-display); color: var(--blue); font-variant-numeric: tabular-nums; }
   .feature .actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 18px; }
   .feature .actions .lock { margin: 0; }
-  @media (max-width: 720px) { .feature { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 24px 18px 20px; } .feature .cover { max-width: 300px; } }
+  @media (max-width: 720px) { .feature { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 24px 18px 20px; } .feature .shelf { justify-self: center; width: 100%; max-width: 300px; } }
 
   /* Über uns */
   .about { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 28px; align-items: start; }
@@ -292,7 +292,6 @@
   <div class="topbar"><div class="wrap"><span>Aktuelle Ausgabe: 9. November 2026</span><span>Koblenz</span></div></div>
   <header class="site-header"><div class="wrap">
     <button class="logo" type="button" data-go="top" aria-label="Landschaftsspiegel, zum Seitenanfang">Landschaftsspiegel</button>
-    <p class="tagline">Die Zeitung über Landschaft und die Kräfte, die sie formen</p>
   </div></header>
   <nav class="menubar" aria-label="Hauptmenü"><div class="wrap">
     <ul class="menu">
