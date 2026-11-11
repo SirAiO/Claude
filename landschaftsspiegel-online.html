@@ -469,6 +469,34 @@
   ISSUES.forEach(function (i) { byId[i.id] = i; });
   function $(id) { return document.getElementById(id); }
 
+  /* Zurück-Geste: jede geöffnete Ansicht (Paywall, Scanner, Heft) bekommt einen Eintrag im Browserverlauf.
+     Wischen vom Rand (iPhone, Android) oder die Zurück-Taste schließt dann die oberste Ansicht. */
+  var Nav = (function () {
+    var stack = [], ok = true;
+    function push(closer) {
+      var top = stack[stack.length - 1];
+      if (top && top.stale) {
+        top.fn = closer; top.stale = false;
+        try { history.replaceState({ ls: stack.length }, "", location.pathname + location.search + "#ansicht"); } catch (e) {}
+        return;
+      }
+      stack.push({ fn: closer, stale: false });
+      try {
+        history.pushState({ ls: stack.length }, "", location.pathname + location.search + "#ansicht");
+        if (!(history.state && history.state.ls)) ok = false;
+      } catch (e) { ok = false; }
+    }
+    function pop() { var e = stack.pop(); if (e && e.fn) e.fn(); }
+    function back() {
+      if (!stack.length) return;
+      if (ok) { try { history.back(); return; } catch (e) {} }
+      pop();
+    }
+    function stale() { var top = stack[stack.length - 1]; if (top) { top.stale = true; top.fn = function () {}; } }
+    window.addEventListener("popstate", function () { if (stack.length) pop(); });
+    return { push: push, back: back, stale: stale };
+  })();
+
   /* Freigabe merken (nur auf diesem Gerät) */
   var unlockedMem = false;
   function isUnlocked() {
@@ -548,6 +576,7 @@
     $("site").inert = true;
     document.body.classList.add("locked");
     $("rback").focus({ preventScroll: true });
+    Nav.push(closeIssue);
   }
   function openGeneric(trigger) {
     lastTrigger = trigger; current = null; $("reader").classList.add("generic");
@@ -558,6 +587,7 @@
     $("reader").hidden = false; $("reader").scrollTop = 0;
     $("site").inert = true; document.body.classList.add("locked");
     $("rback").focus({ preventScroll: true });
+    Nav.push(closeIssue);
   }
   function closeIssue() {
     $("reader").hidden = true;
@@ -576,7 +606,7 @@
     var o = ev.target.closest("a.open");
     if (o) { ev.preventDefault(); openIssue(o.getAttribute("data-id"), o); }
   });
-  $("rback").addEventListener("click", closeIssue);
+  $("rback").addEventListener("click", Nav.back);
 
   /* Menü, Abo-Knöpfe, Scroll-Anzeige */
   document.querySelectorAll("[data-go]").forEach(function (b) {
@@ -730,6 +760,7 @@
       if (window.BarcodeDetector) { try { det = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a"] }); } catch (e) { det = null; } }
       msg.textContent = HINT; msg.removeAttribute("data-bad");
       clearInterval(timer); timer = setInterval(scanOnce, 140);
+      Nav.push(function () { stop(); showScanbox(); });
     }
     function stop() {
       clearInterval(timer); timer = null; clearTimeout(badTimer);
@@ -764,7 +795,7 @@
       if (text === last && now - lastAt < 1500) { lastAt = now; return; }
       last = text; lastAt = now;
       var r = onDone(text);
-      if (r && r.ok) { try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {} stop(); return; }
+      if (r && r.ok) { try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {} stop(); Nav.stale(); return; }
       msg.textContent = (r && r.msg) || "Barcode nicht erkannt."; msg.setAttribute("data-bad", "1");
       clearTimeout(badTimer); badTimer = setTimeout(function () { msg.textContent = HINT; msg.removeAttribute("data-bad"); }, 2600);
     }
@@ -772,8 +803,8 @@
       var on = torchB.getAttribute("aria-pressed") !== "true";
       try { await track.applyConstraints({ advanced: [{ torch: on }] }); torchB.setAttribute("aria-pressed", String(on)); } catch (e) {}
     });
-    $("sc-close").addEventListener("click", function () { stop(); showScanbox(); });
-    document.addEventListener("visibilitychange", function () { if (document.hidden && stream) stop(); });
+    $("sc-close").addEventListener("click", Nav.back);
+    document.addEventListener("visibilitychange", function () { if (document.hidden && stream) { stop(); Nav.stale(); } });
     return { start: start, stop: stop, isOpen: function () { return !ov.hidden; } };
   })();
 
@@ -1118,7 +1149,7 @@
 
     prevB.addEventListener("click", function () { turn(-1); });
     nextB.addEventListener("click", function () { turn(1); });
-    q("#f-close").addEventListener("click", close);
+    q("#f-close").addEventListener("click", Nav.back);
     zinB.addEventListener("click", function () { zoomCenter(1.5); });
     zoutB.addEventListener("click", function () { zoomCenter(1 / 1.5); });
     zvalB.addEventListener("click", resetZoom);
@@ -1128,15 +1159,15 @@
       zoomAt(f, e.clientX, e.clientY, false);
     }, { passive: false });
     document.addEventListener("keydown", function (e) {
-      if (Scanner.isOpen()) { if (e.key === "Escape") Scanner.stop(); return; }
+      if (Scanner.isOpen()) { if (e.key === "Escape") Nav.back(); return; }
       if (flip.hidden) {
-        if (e.key === "Escape" && !$("reader").hidden) closeIssue();
+        if (e.key === "Escape" && !$("reader").hidden) Nav.back();
         return;
       }
       if (e.key === "+" || e.key === "=") { e.preventDefault(); zoomCenter(1.5); return; }
       if (e.key === "-" || e.key === "_") { e.preventDefault(); zoomCenter(1 / 1.5); return; }
       if (e.key === "0") { e.preventDefault(); resetZoom(); return; }
-      if (e.key === "Escape") { close(); }
+      if (e.key === "Escape") { Nav.back(); }
       else if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); turn(1); }
       else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); turn(-1); }
     });
@@ -1150,6 +1181,7 @@
       label.textContent = "Seiten werden geladen …";
       flip.hidden = false; $("reader").inert = true; $("site").inert = true; document.body.classList.add("locked");
       var im = new Image();
+      Nav.push(close);
       im.onload = function () { ratio = im.naturalWidth / im.naturalHeight; build(); nextB.focus({ preventScroll: true }); };
       im.onerror = function () { label.textContent = "Die Seiten konnten nicht geladen werden."; };
       im.src = urls[0];
